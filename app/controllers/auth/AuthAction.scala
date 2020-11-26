@@ -47,8 +47,9 @@ class AuthActionImpl @Inject()(override val authConnector: DefaultAuthConnector,
         HeaderCarrierConverter.fromHeadersAndSession(request.headers, Some(request.session))
 
       authorised(ConfidenceLevel.L50 and (Enrolment("IR-SA") or Enrolment("IR-SA-AGENT")))
-        .retrieve(Retrievals.allEnrolments and Retrievals.externalId) {
-          case Enrolments(enrolments) ~ Some(externalId) => {
+        .retrieve(
+          Retrievals.allEnrolments and Retrievals.externalId and Retrievals.nino and Retrievals.credentialStrength) {
+          case Enrolments(enrolments) ~ Some(externalId) ~ _ ~ _ => {
             val agentRef: Option[Uar] = enrolments.find(_.key == "IR-SA-AGENT").flatMap { enrolment =>
               enrolment.identifiers
                 .find(id => id.key == "IRAgentReference")
@@ -99,6 +100,8 @@ class AuthActionImpl @Inject()(override val authConnector: DefaultAuthConnector,
               )
             }
           }
+          case _ ~ _ ~ Some(_) ~ Some(CredentialStrength.strong) =>
+            Future.successful(Redirect(controllers.paye.routes.PayeMultipleYearsController.onPageLoad()))
           case _ => throw new RuntimeException("Can't find credentials for user")
         }
     } recover {
